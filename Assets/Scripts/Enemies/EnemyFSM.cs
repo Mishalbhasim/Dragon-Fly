@@ -5,23 +5,39 @@ using RunnerGame.Pooling;
 
 namespace RunnerGame.Enemies
 {
- 
+    /// <summary>
+    /// Simple, explicit Finite State Machine — no NavMesh, no pathfinding.
+    /// Moving: drifts left with the world scroll (plus its own fixed
+    ///         approach speed) until it reaches a randomly-rolled stop
+    ///         position — a position target, not a timer, so it stays
+    ///         unpredictable regardless of how fast the world is scrolling.
+    ///         The roll can land past despawnX, in which case the enemy
+    ///         never stops/shoots at all before it's recycled.
+    /// Shooting: pauses movement, brief wind-up, fires exactly one shot,
+    ///           then resumes Moving. Each enemy only ever fires once.
+    /// Despawning: once off the left edge of the screen, returns to pool.
+    ///
+    /// Implements IPooledObject so ObjectPooler can reset its state cleanly
+    /// every time it's reused.
+    /// </summary>
     public class EnemyFSM : MonoBehaviour, IPooledObject
     {
         [Header("Movement")]
         [SerializeField] private float ownMoveSpeed = 2f;
-        [SerializeField] private float movingDuration = 1.5f;
         [SerializeField] private float despawnX = -15f;
+        [Tooltip("How far past despawnX the random stop-target can roll. Bigger = more likely this enemy never stops/shoots at all before despawning.")]
+        [SerializeField] private float neverStopMargin = 5f;
 
         [Header("Shooting")]
-        [SerializeField] private float shootingDuration = 1f;
-        [SerializeField] private float fireInterval = 0.5f;
+        [SerializeField] private float fireDelay = 0.35f; // wind-up before the single shot
+        [SerializeField] private GameObject projectilePrefab; // used only for pool tag reference in inspector
         [SerializeField] private string projectilePoolTag = "EnemyProjectile";
         [SerializeField] private Transform firePoint;
 
         private EnemyState _state;
-        private float _stateTimer;
         private float _fireTimer;
+        private float _targetStopX;
+        private bool _hasFired;
         private Transform _player;
 
         public string PoolTag => "Enemy";
@@ -34,12 +50,18 @@ namespace RunnerGame.Enemies
 
         public void OnSpawn()
         {
+            // Random point somewhere between "shoot immediately from spawn"
+            // and "past despawn, so it never shoots at all" — decoupled
+            // from scroll speed entirely, since it's a position target,
+            // not a timer.
+            _targetStopX = Random.Range(despawnX - neverStopMargin, transform.position.x);
+            _hasFired = false;
             ChangeState(EnemyState.Moving);
         }
 
         public void OnDespawn()
         {
-            
+            // Nothing to clean up currently; placeholder for future coroutines/VFX.
         }
 
         private void Update()
@@ -47,16 +69,21 @@ namespace RunnerGame.Enemies
             if (GameManager.Instance == null || GameManager.Instance.State != GameState.Playing)
                 return;
 
-            
-            transform.position += Vector3.left *
-                (GameManager.Instance.CurrentScrollSpeed + ownMoveSpeed) * Time.deltaTime;
-
-            _stateTimer -= Time.deltaTime;
+            // Always drift with the world scroll so it stays visually locked
+            // to the environment, plus a little independent motion — except
+            // while Shooting, where it holds position.
+            if (_state != EnemyState.Shooting)
+            {
+                transform.position += Vector3.left *
+                    (GameManager.Instance.CurrentScrollSpeed + ownMoveSpeed) * Time.deltaTime;
+            }
 
             switch (_state)
             {
                 case EnemyState.Moving:
-                    if (_stateTimer <= 0f) ChangeState(EnemyState.Shooting);
+                    // Only ever transitions to Shooting once per enemy.
+                    if (!_hasFired && transform.position.x <= _targetStopX)
+                        ChangeState(EnemyState.Shooting);
                     break;
 
                 case EnemyState.Shooting:
@@ -64,9 +91,9 @@ namespace RunnerGame.Enemies
                     if (_fireTimer <= 0f)
                     {
                         FireProjectile();
-                        _fireTimer = fireInterval;
+                        _hasFired = true;
+                        ChangeState(EnemyState.Moving); // resume drifting after the single shot
                     }
-                    if (_stateTimer <= 0f) ChangeState(EnemyState.Moving);
                     break;
 
                 case EnemyState.Despawning:
@@ -83,16 +110,8 @@ namespace RunnerGame.Enemies
         private void ChangeState(EnemyState newState)
         {
             _state = newState;
-            switch (newState)
-            {
-                case EnemyState.Moving:
-                    _stateTimer = movingDuration;
-                    break;
-                case EnemyState.Shooting:
-                    _stateTimer = shootingDuration;
-                    _fireTimer = 0f; // fire immediately on entering
-                    break;
-            }
+            if (newState == EnemyState.Shooting)
+                _fireTimer = fireDelay;
         }
 
         private void FireProjectile()
@@ -104,10 +123,18 @@ namespace RunnerGame.Enemies
 
             if (projObj != null && projObj.TryGetComponent<Projectile>(out var proj))
             {
-                
+                // Straight-line shot toward the player's current position —
+                // no lead/prediction required by spec.
                 Vector3 direction = _player != null
                     ? (_player.position - spawnPos).normalized
                     : Vector3.left;
+
+                // World only scrolls left — never let a shot point
+                // backward/right, even if the enemy somehow ends up left
+                // of the player.
+                if (direction.x > -0.15f)
+                    direction = Vector3.left;
+
                 proj.Launch(direction);
             }
         }
