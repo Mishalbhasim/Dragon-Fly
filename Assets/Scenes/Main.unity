@@ -2976,7 +2976,6 @@ MonoBehaviour:
   maxDownwardVelocity: -14
   ceilingY: 5.5
   floorY: -0.5
-  spawnY: 0
 --- !u!1 &2002229759
 GameObject:
   m_ObjectHideFlags: 0
@@ -3093,7 +3092,7 @@ MonoBehaviour:
   pools:
   - tag: Obstacle
     prefab: {fileID: 6806308301526250214, guid: 7019db560e840694095f21b2f4500257, type: 3}
-    size: 3
+    size: 7
   - tag: Enemy
     prefab: {fileID: 3843439212688866467, guid: 69f88652bf4c0244da01c31553bdfc76, type: 3}
     size: 2
