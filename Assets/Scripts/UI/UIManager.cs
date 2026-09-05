@@ -44,16 +44,16 @@ namespace RunnerGame.UI
 
         private void Start()
         {
-            HandleGameStateChanged(GameState.MainMenu);
+            HandleGameStateChanged(GameManager.Instance != null ? GameManager.Instance.State : GameState.MainMenu);
         }
 
-        // button hooks
+        // button wiring
 
         public void OnStartButtonPressed() => GameManager.Instance.StartGame();
-        public void OnRestartButtonPressed() => GameManager.Instance.StartGame();
+        public void OnRestartButtonPressed() => GameManager.Instance.RestartGame();
         public void OnMainMenuButtonPressed() => GameManager.Instance.ReturnToMenu();
 
-        // Event handlers 
+        // Event handlers
 
         private void HandleScoreChanged(int score)
         {
