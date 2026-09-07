@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using RunnerGame.Core;
 using RunnerGame.Events;
+using TMPro;
 
 namespace RunnerGame.UI
 {
@@ -20,7 +21,7 @@ namespace RunnerGame.UI
         [SerializeField] private Text healthText;
 
         [Header("Game Over")]
-        [SerializeField] private Text finalScoreText;
+        [SerializeField] private TMP_Text finalScoreText;
 
         private void Awake()
         {
@@ -52,6 +53,16 @@ namespace RunnerGame.UI
         public void OnStartButtonPressed() => GameManager.Instance.StartGame();
         public void OnRestartButtonPressed() => GameManager.Instance.RestartGame();
         public void OnMainMenuButtonPressed() => GameManager.Instance.ReturnToMenu();
+
+        public void OnQuitButtonPressed()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false; // stop Play Mode when testing in-editor
+#else
+    Application.Quit(); // only actually quits in a real build, not in the Editor
+#endif
+        }
+
 
         // Event handlers
 
